@@ -1,22 +1,26 @@
-<?php 
+<?php
+
+/**
+ * @author Andrei Coelho
+ * @version 2.1
+ */
 
 function hot_json_encode ($var, int $options = 0, int $depth = 512) {
     return json_encode(transform_value($var), $options, $depth);
 }
 
 function hot_json_decode (string $json, string $class = null, bool $assoc = FALSE, int $depth = 512, int $options = 0) {
-
+    
+    $json = preg_replace("#(/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/)|([\s\t](//).*)#", '', $json); 
+    
     if($class !== null){
         $json = json_decode($json, true);
-        /*
-            verificar se houve erro na geração do json
-        */
+        if(json_last_error() !== JSON_ERROR_NONE) return null;
         return object_instance($class, $json);
     }
+
     $json = json_decode($json,$assoc,$depth,$options);
-    /*
-        verificar se houve erro na geração do json
-    */
+    if(json_last_error() !== JSON_ERROR_NONE) return false;
     return $json;
 }
 
@@ -25,23 +29,42 @@ function object_instance(string $class, array $json){
     $reflex =  new ReflectionClass($class);
     $comment = $reflex -> getDocComment();
     $inspector = inspec_comments($comment);
-    return set_values($reflex, $json, $inspector);
+    $bloquers = [];
+
+    if($inspector['bound'] === false && ($parent = $reflex -> getParentClass()) !== false)
+        $bloquers = get_inherited_block_values($parent, "DECODE");
+
+    return set_values($reflex, $json, $inspector, $bloquers);
     
 }
 
-function set_values(ReflectionClass $reflex, array $json, array $inspector){
+function get_inherited_block_values(ReflectionClass $parent, string $type){
+
+    $comment = $parent -> getDocComment();
+    $inspector = inspec_comments($comment);
+    $bloquers = [];
+
+    if($inspector['bound'] === false && ($parentP = $parent -> getParentClass()) !== false)
+        $bloquers = get_inherited_block_values($parentP, $type);
+    
+    foreach($inspector['block'] as $field => $ty)
+        if($ty == $type || $ty == "ALL") $bloquers[] = $field;
+        
+    return $bloquers;
+}
+
+function set_values(ReflectionClass $reflex, array $json, array $inspector, array $bloquers){
 
     $obj = $reflex -> newInstanceWithoutConstructor();
     
     foreach ($json as $field => $value) {
-
-        if($value === null) continue;
-
-        if(array_key_exists($field, $inspector['block'])){
-            if($inspector['block'][$field] == "ALL" || $inspector['block'][$field] == "DECODE"){
+        
+        if($value === null || in_array($field, $bloquers))
+            continue;
+        
+        if(array_key_exists($field, $inspector['block']))
+            if($inspector['block'][$field] == "ALL" || $inspector['block'][$field] == "DECODE")
                 continue;
-            }
-        }
 
         if(array_key_exists($field, $inspector['kind']) && $inspector['kind'][$field] != ""){
             $type = $inspector['kind'][$field];
@@ -70,31 +93,38 @@ function inspec_comments($comment){
 
     $inspec = [
         "kind" => [],
-        "block" => []
+        "block" => [],
+        "bound" => false
     ];
     
     if($comment !== false) {
-
-        preg_match_all('/@(kind|block)+\s+[\w:]+/', $comment, $array);
         
-        foreach ($array[0] as $value) {
+        preg_match_all('/(@(kind|block)+\s+[\w:]+|@bound)/', $comment, $array);
+        
+        foreach ($array[1] as $value) {
 
-            preg_match('/@([\w]+)\s+([\w:]+)/', $value, $params);
-            switch($params[1]){
+            preg_match('/(@([\w]+)\s+([\w:]+)|@(bound))/', $value, $params);
+
+            if(isset($params[4]) && $params[4] == "bound"){
+                $inspec['bound'] = true;
+                continue;
+            }
+
+            switch($params[2]){
     
                 case "kind": 
-                    if( strpos( $params[2],":" ) !== false) {
-                        $values = explode(":", $params[2]);
+                    if( strpos( $params[3],":" ) !== false) {
+                        $values = explode(":", $params[3]);
                         $inspec['kind'][$values[0]] = $values[1]; 
                     }
                 break;
     
                 case "block": 
-                    if( strpos( $params[2],":" ) !== false) {
-                        $values = explode(":", $params[2]);
+                    if( strpos( $params[3],":" ) !== false) {
+                        $values = explode(":", $params[3]);
                         $inspec['block'][$values[0]] = strtoupper($values[1]); 
                     } else {
-                        $inspec['block'][$params[2]] = "ALL";
+                        $inspec['block'][$params[3]] = "ALL";
                     }
                 break;
     
@@ -108,32 +138,37 @@ function inspec_comments($comment){
 
 function transform_value ($val) {
 
-    if (is_array($val)){
+    if (is_array($val))
         $newValue = read_array($val);
-    } else
-    if (is_object($val)){
+    else
+    if (is_object($val))
         $newValue = read_object($val);
-    } else {
+    else
         $newValue = $val;
-    }
 
     return $newValue;
 }
 
 function read_object (Object $obj) {
-
-    $newArray = [];
+    
+    $nObj = get_class($obj); 
     $reflex =  new ReflectionClass($obj);
     $inspector = inspec_comments($reflex -> getDocComment());
+    $newArray = [];
+    $bloquers = [];
+
+    if($inspector['bound'] === false && ($parent = $reflex -> getParentClass()) !== false)
+        $bloquers = get_inherited_block_values($parent, "ENCODE");
+
     $props = $reflex -> getProperties();
 
     foreach ($props as $prop){
-
-        if(array_key_exists($prop -> getName(), $inspector['block'])){
-            if($inspector['block'][$prop -> getName()] == "ALL" || $inspector['block'][$prop -> getName()] == "ENCODE"){
+        
+        if($nObj != $prop->class && in_array($prop->name, $bloquers)) continue;
+        if(array_key_exists($prop->name, $inspector['block']))
+            if($inspector['block'][$prop->name] == "ALL" || $inspector['block'][$prop->name] == "ENCODE")
                 continue;
-            }
-        }
+
         $prop -> setAccessible(true);
         $newArray[$prop -> name] = transform_value($prop -> getValue($obj));
 
@@ -145,10 +180,9 @@ function read_object (Object $obj) {
 function read_array (array $arr) {
 
     $newArray = [];
-
-    foreach ($arr as $key => $val){
+    foreach ($arr as $key => $val)
         $newArray[$key] = transform_value($val);
-    }
 
     return $newArray;
+
 }
