@@ -2,7 +2,7 @@
 
 /**
  * @author Andrei Coelho
- * @version 2.1
+ * @version 2.2
  */
 
 function hot_json_encode ($var, int $options = 0, int $depth = 512) {
@@ -20,7 +20,7 @@ function hot_json_decode (string $json, string $class = null, bool $assoc = FALS
     }
 
     $json = json_decode($json,$assoc,$depth,$options);
-    if(json_last_error() !== JSON_ERROR_NONE) return false;
+    if(json_last_error() !== JSON_ERROR_NONE) return null;
     return $json;
 }
 
@@ -44,8 +44,17 @@ function hot_json_last_error(){
         case JSON_ERROR_UTF8:
             return [5,'Malformed UTF-8 characters, possibly incorrectly encoded'];
         break;
+        case JSON_ERROR_RECURSION:
+            return [6,'Recursion detected'];
+        break;
+        case JSON_ERROR_INF_OR_NAN:
+            return [7,'INF or NAN value cannot be JSON encoded'];
+        break;
+        case JSON_ERROR_UNSUPPORTED_TYPE:
+            return [8,'Unsupported type'];
+        break;
         default:
-            return [6,'Unknown error'];
+            return [9,'Unknown error'];
         break;
     }
 }
