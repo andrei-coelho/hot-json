@@ -25,38 +25,32 @@ function hot_json_decode (string $json, string $class = null, bool $assoc = FALS
 }
 
 function hot_json_last_error(){
+
     switch (json_last_error()) {
+
         case JSON_ERROR_NONE:
             return [0,'No errors'];
-        break;
         case JSON_ERROR_DEPTH:
             return [1,'Maximum stack depth exceeded'];
-        break;
         case JSON_ERROR_STATE_MISMATCH:
             return [2,'Underflow or the modes mismatch'];
-        break;
         case JSON_ERROR_CTRL_CHAR:
             return [3,'Unexpected control character found'];
-        break;
         case JSON_ERROR_SYNTAX:
             return [4,'Syntax error, malformed JSON'];
-        break;
         case JSON_ERROR_UTF8:
             return [5,'Malformed UTF-8 characters, possibly incorrectly encoded'];
-        break;
         case JSON_ERROR_RECURSION:
             return [6,'Recursion detected'];
-        break;
         case JSON_ERROR_INF_OR_NAN:
             return [7,'INF or NAN value cannot be JSON encoded'];
-        break;
         case JSON_ERROR_UNSUPPORTED_TYPE:
             return [8,'Unsupported type'];
-        break;
         default:
             return [9,'Unknown error'];
-        break;
+            
     }
+
 }
 
 function object_instance(string $class, array $json){
