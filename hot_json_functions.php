@@ -24,6 +24,32 @@ function hot_json_decode (string $json, string $class = null, bool $assoc = FALS
     return $json;
 }
 
+function hot_json_last_error(){
+    switch (json_last_error()) {
+        case JSON_ERROR_NONE:
+            return [0,'No errors'];
+        break;
+        case JSON_ERROR_DEPTH:
+            return [1,'Maximum stack depth exceeded'];
+        break;
+        case JSON_ERROR_STATE_MISMATCH:
+            return [2,'Underflow or the modes mismatch'];
+        break;
+        case JSON_ERROR_CTRL_CHAR:
+            return [3,'Unexpected control character found'];
+        break;
+        case JSON_ERROR_SYNTAX:
+            return [4,'Syntax error, malformed JSON'];
+        break;
+        case JSON_ERROR_UTF8:
+            return [5,'Malformed UTF-8 characters, possibly incorrectly encoded'];
+        break;
+        default:
+            return [6,'Unknown error'];
+        break;
+    }
+}
+
 function object_instance(string $class, array $json){
 
     $reflex =  new ReflectionClass($class);
@@ -69,7 +95,13 @@ function set_values(ReflectionClass $reflex, array $json, array $inspector, arra
         if(array_key_exists($field, $inspector['kind']) && $inspector['kind'][$field] != ""){
             $type = $inspector['kind'][$field];
             switch($type){
-                case "string": $value = (string)$value; break;
+                case "string": 
+                    if(is_array($value))
+                        $value = array_to_string($value);
+                    else
+                        $value = (string)$value;
+                break;
+                $value = (string)$value; break;
                 case "int": $value = (int)$value; break;
                 case "float": $value = (float)$value; break;
                 case "bool": $value = (bool)$value; break;
@@ -87,6 +119,18 @@ function set_values(ReflectionClass $reflex, array $json, array $inspector, arra
     }
 
     return $obj;
+}
+
+function array_to_string(array $arr){
+    $str = "[";
+    foreach($arr as $key => $val) {
+        if(!is_numeric($key)) $str .= $key . ":";
+        if(is_array($val))
+            $str .= array_to_string($val).",";
+        else
+            $str .= $val.",";
+    }
+    return substr($str,0,-1) . "]";
 }
 
 function inspec_comments($comment){

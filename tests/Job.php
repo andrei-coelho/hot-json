@@ -1,7 +1,7 @@
 <?php 
 
 /**
- * @kind languages:array
+ * @kind languages:string
  */
 
 class Job {
@@ -11,11 +11,8 @@ class Job {
 
     public function toString(){
 
-        $str = $this -> name . " in ";
-        foreach ($this -> languages as $lang) {
-            $str .= $lang." and ";
-        }
-        return substr($str, 0, -4);
+       
+        return $this -> languages;
 
     }
 
